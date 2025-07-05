@@ -1,3 +1,25 @@
+# 我的仓库
+
+**1️⃣** ： 中文docker项目集成项目： [https://github.com/coracoo/awesome_docker_cn](https://github.com/coracoo/awesome_docker_cn)
+
+**2️⃣** ： docker转compose：[https://github.com/coracoo/docker2compose](https://github.com/coracoo/docker2compose)
+
+**3️⃣** ： 容器部署iSCSI，支持绿联极空间飞牛：[https://github.com/coracoo/d-tgtadm/](https://github.com/coracoo/d-tgtadm/)
+
+**4️⃣** :  容器端口检查工具： [https://github.com/coracoo/DockPorts/](https://github.com/coracoo/DockPorts)
+
+# 我的频道
+
+### 首发平台——什么值得买：
+
+### [⭐点我关注](https://zhiyou.smzdm.com/member/9674309982/) 
+
+### 微信公众号：
+
+![关注](https://github.com/user-attachments/assets/9a1c4de0-2f08-413f-ab7f-d7d463af1698)
+
+---
+
 # DockPorts - 容器端口监控工具
 
 一个现代化的Docker容器端口监控和可视化工具，帮助您轻松管理和监控NAS或服务器上的端口使用情况。
@@ -301,23 +323,12 @@ docker logs -f dockports
 
 ## 📝 更新日志
 
-### v1.3.0 (最新)
+### v0.1.0 (最新)
 - ⚙️ 新增命令行参数支持（--port, --host, --debug）
 - 🔧 支持自定义Web服务端口，解决host网络模式下端口冲突问题
 - 🐳 优化Docker镜像构建，支持ENTRYPOINT传参
 - 📦 更新GitHub Actions配置，统一镜像名为DockPorts
-- 🛠️ 改进rebuild_and_test.sh脚本，支持端口和调试模式参数
-- 📚 完善文档，添加命令行参数使用说明
-
-### v1.2.0
 - 👁️ 端口隐藏功能，支持隐藏不需要显示的端口
-- 📋 批量操作功能，支持批量隐藏/取消隐藏端口范围
-- 🎨 虚拟端口显示，隐藏端口以虚线边框样式区分
-- ⚡ 实时同步，隐藏/取消隐藏操作后立即更新显示状态
-- 🏷️ 标签页导航，"所有端口"和"已隐藏"标签页切换
-- 🐛 修复JSON解析错误和手动刷新问题
-
-### v1.1.0
 - 🐳 基础Docker容器端口监控功能
 - 🖥️ 系统端口监控功能
 - 📊 可视化端口展示界面

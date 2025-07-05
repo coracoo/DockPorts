@@ -30,7 +30,7 @@
 
 1. 克隆项目：
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/coracoo/DockPorts.git
 cd DockPorts
 ```
 
@@ -45,15 +45,13 @@ docker-compose up -d
 ### 使用Docker运行
 
 ```bash
-docker build -t dockports .
-
 # 使用默认端口7577
 docker run -d \
   --name dockports \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
-  dockports
+  ghcr.io/coracoo/dockports:latest
 
 # 使用自定义端口8080
 docker run -d \
@@ -61,7 +59,8 @@ docker run -d \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
-  dockports --port 8080
+  -e DOCKPORTS_PORT=8080
+  ghcr.io/coracoo/dockports:latest
 
 # 启用调试模式
 docker run -d \
@@ -69,7 +68,7 @@ docker run -d \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
-  dockports --debug
+  ghcr.io/coracoo/dockports:latest --debug
 ```
 
 ### 本地开发

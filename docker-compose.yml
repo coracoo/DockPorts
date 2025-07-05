@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   dockports:
-    image: dockports
+    image: ghcr.io/coracoo/dockports:latest
     container_name: dockports
     network_mode: host
     volumes:

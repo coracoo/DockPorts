@@ -3,9 +3,13 @@ version: '3.8'
 services:
   dockports:
     image: dockports
-    container_name: dockports-container
+    container_name: dockports
     network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config:/app/config
+    environment:
+      - DOCKPORTS_PORT=7577  # 可修改此端口以避免冲突
+    # 如果需要使用命令行参数，可以取消注释下面的行
+    # command: ["--port", "8080", "--debug"]
     restart: unless-stopped

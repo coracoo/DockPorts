@@ -20,6 +20,7 @@ import os
 import socket
 import time
 from functools import lru_cache
+import argparse
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -40,35 +41,45 @@ def init_config():
     # 确保配置目录存在
     os.makedirs(CONFIG_DIR, exist_ok=True)
     
-    # 如果配置文件存在，直接返回
-    if os.path.exists(CONFIG_FILE):
-        print(f"配置文件已存在: {CONFIG_FILE}")
-        return
-    
-    # 配置文件不存在时，从示例文件复制
-    example_config_file = os.path.join(os.path.dirname(__file__), 'config.json.example')
-    
-    if os.path.exists(example_config_file):
-        # 从示例文件复制配置
-        shutil.copy2(example_config_file, CONFIG_FILE)
-        print(f"配置文件已从示例文件复制: {CONFIG_FILE}")
+    # 初始化主配置文件
+    config_created = False
+    if not os.path.exists(CONFIG_FILE):
+        # 配置文件不存在时，从示例文件复制
+        example_config_file = os.path.join(os.path.dirname(__file__), 'config.json.example')
+        
+        if os.path.exists(example_config_file):
+            # 从示例文件复制配置
+            shutil.copy2(example_config_file, CONFIG_FILE)
+            print(f"配置文件已从示例文件复制: {CONFIG_FILE}")
+        else:
+            # 如果示例文件不存在，创建默认配置（向后兼容）
+            default_config = {
+                "远程登录": 22,
+                "网页服务": 80,
+                "安全网页": 443,
+                "MySQL数据库": 3306,
+                "PostgreSQL数据库": 5432,
+                "Redis缓存": 6379,
+                "MongoDB数据库": 27017,
+                "搜索分析": 9200
+            }
+            
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(default_config, f, indent=2, ensure_ascii=False)
+            
+            print(f"配置文件已创建（默认配置）: {CONFIG_FILE}")
+        config_created = True
     else:
-        # 如果示例文件不存在，创建默认配置（向后兼容）
-        default_config = {
-            "远程登录": 22,
-            "网页服务": 80,
-            "安全网页": 443,
-            "MySQL数据库": 3306,
-            "PostgreSQL数据库": 5432,
-            "Redis缓存": 6379,
-            "MongoDB数据库": 27017,
-            "搜索分析": 9200
-        }
-        
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(default_config, f, indent=2, ensure_ascii=False)
-        
-        print(f"配置文件已创建（默认配置）: {CONFIG_FILE}")
+        print(f"配置文件已存在: {CONFIG_FILE}")
+    
+    # 初始化隐藏端口配置文件
+    if not os.path.exists(HIDDEN_PORTS_FILE):
+        # 创建空的隐藏端口配置文件
+        with open(HIDDEN_PORTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f, indent=2, ensure_ascii=False)
+        print(f"隐藏端口配置文件已创建: {HIDDEN_PORTS_FILE}")
+    else:
+        print(f"隐藏端口配置文件已存在: {HIDDEN_PORTS_FILE}")
 
 def load_config():
     """加载配置文件"""
@@ -940,6 +951,39 @@ def api_unhide_ports_batch():
             'error': str(e)
         }), 500
 
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description='DockPorts - 容器端口监控工具')
+    parser.add_argument('--port', '-p', type=int, default=7577,
+                        help='Web服务端口 (默认: 7577)')
+    parser.add_argument('--host', type=str, default='0.0.0.0',
+                        help='Web服务监听地址 (默认: 0.0.0.0)')
+    parser.add_argument('--debug', action='store_true',
+                        help='启用调试模式')
+    return parser.parse_args()
+
 if __name__ == '__main__':
-    logger.info("启动DockPorts应用")
-    app.run(host='0.0.0.0', port=7577, debug=True)
+    # 解析命令行参数
+    args = parse_args()
+    
+    logger.info(f"启动DockPorts应用 - 监听地址: {args.host}:{args.port}")
+    
+    # 验证端口范围
+    if not (1 <= args.port <= 65535):
+        logger.error(f"端口号 {args.port} 无效，必须在1-65535之间")
+        exit(1)
+    
+    try:
+        app.run(host=args.host, port=args.port, debug=args.debug)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            logger.error(f"端口 {args.port} 已被占用，请使用 --port 参数指定其他端口")
+            logger.info("例如: python app.py --port 8080")
+        else:
+            logger.error(f"启动失败: {e}")
+        exit(1)
+    except KeyboardInterrupt:
+        logger.info("应用已停止")
+    except Exception as e:
+        logger.error(f"应用运行时出错: {e}")
+        exit(1)

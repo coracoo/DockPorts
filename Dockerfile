@@ -31,12 +31,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY . .
 
-# 暴露端口
-EXPOSE 7577
+# 设置默认端口环境变量
+ENV DOCKPORTS_PORT=7577
 
-# 健康检查
+# 暴露端口（默认7577，可通过环境变量或命令行参数修改）
+EXPOSE $DOCKPORTS_PORT
+
+# 健康检查（使用环境变量）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:7577/ || exit 1
+    CMD curl -f http://localhost:${DOCKPORTS_PORT}/ || exit 1
 
-# 启动应用
-CMD ["python", "app.py"]
+# 启动应用（使用ENTRYPOINT支持命令行参数）
+ENTRYPOINT ["python", "app.py"]
+CMD []

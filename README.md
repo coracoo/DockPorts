@@ -46,12 +46,30 @@ docker-compose up -d
 
 ```bash
 docker build -t dockports .
+
+# 使用默认端口7577
 docker run -d \
   --name dockports \
-  -p 7577:7577 \
+  --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /proc:/host/proc:ro \
+  -v ./config:/app/config \
   dockports
+
+# 使用自定义端口8080
+docker run -d \
+  --name dockports \
+  --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  dockports --port 8080
+
+# 启用调试模式
+docker run -d \
+  --name dockports \
+  --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  dockports --debug
 ```
 
 ### 本地开发
@@ -63,7 +81,17 @@ pip install -r requirements.txt
 
 2. 运行应用：
 ```bash
+# 使用默认端口7577
 python app.py
+
+# 使用自定义端口
+python app.py --port 8080
+
+# 启用调试模式
+python app.py --debug
+
+# 查看帮助信息
+python app.py --help
 ```
 
 ## 📋 系统要求
@@ -82,12 +110,40 @@ python app.py
 | `TZ` | `Asia/Shanghai` | 时区设置 |
 | `PYTHONUNBUFFERED` | `1` | Python输出缓冲设置 |
 
+## 🔧 配置说明
+
+### 命令行参数
+
+DockPorts 支持以下命令行参数来自定义运行配置：
+
+| 参数 | 简写 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--port` | `-p` | 7577 | Web服务端口 |
+| `--host` | - | 0.0.0.0 | Web服务监听地址 |
+| `--debug` | - | false | 启用调试模式 |
+| `--help` | `-h` | - | 显示帮助信息 |
+
+**使用示例：**
+```bash
+# 修改端口以避免冲突
+python app.py --port 8080
+
+# 在Docker中使用自定义端口
+docker run -d --name dockports --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  dockports --port 8080
+
+# 在docker-compose中使用命令行参数
+# 取消注释 docker-compose.yml 中的 command 行并修改参数
+```
+
 ### 卷映射
 
 | 主机路径 | 容器路径 | 说明 |
 |----------|----------|------|
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Docker API访问（只读） |
-| `/proc` | `/host/proc` | 系统进程信息（只读） |
+| `./config` | `/app/config` | 配置文件目录 |
 
 ## 📊 功能详解
 
@@ -246,15 +302,21 @@ docker logs -f dockports
 
 ## 📝 更新日志
 
-### v1.2.0 (最新)
-- ✨ 新增端口隐藏功能，支持隐藏不需要显示的端口
-- 📋 新增批量隐藏/取消隐藏端口范围功能
-- 🎨 新增虚拟端口显示，隐藏端口以虚线边框区分
-- 🏷️ 新增"已隐藏"标签页，专门查看隐藏的端口
-- ⚡ 修复隐藏端口操作后需要手动刷新的问题，现在支持实时同步
-- 🔧 修复取消隐藏端口范围时的JSON解析错误
-- 🎯 优化隐藏端口的合并逻辑，与后端保持一致
-- 🛠️ 新增完整的隐藏端口管理API接口
+### v1.3.0 (最新)
+- ⚙️ 新增命令行参数支持（--port, --host, --debug）
+- 🔧 支持自定义Web服务端口，解决host网络模式下端口冲突问题
+- 🐳 优化Docker镜像构建，支持ENTRYPOINT传参
+- 📦 更新GitHub Actions配置，统一镜像名为DockPorts
+- 🛠️ 改进rebuild_and_test.sh脚本，支持端口和调试模式参数
+- 📚 完善文档，添加命令行参数使用说明
+
+### v1.2.0
+- 👁️ 端口隐藏功能，支持隐藏不需要显示的端口
+- 📋 批量操作功能，支持批量隐藏/取消隐藏端口范围
+- 🎨 虚拟端口显示，隐藏端口以虚线边框样式区分
+- ⚡ 实时同步，隐藏/取消隐藏操作后立即更新显示状态
+- 🏷️ 标签页导航，"所有端口"和"已隐藏"标签页切换
+- 🐛 修复JSON解析错误和手动刷新问题
 
 ### v1.1.0
 - 🐳 基础Docker容器端口监控功能

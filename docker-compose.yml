@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  dockports:
+    image: dockports
+    container_name: dockports-container
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config:/app/config
+    restart: unless-stopped

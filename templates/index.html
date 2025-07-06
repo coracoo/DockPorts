@@ -11,6 +11,11 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: 
@@ -23,6 +28,8 @@
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px, 0 0;
             min-height: 100vh;
             color: #333;
+            padding: 0 20px;
+            box-sizing: border-box;
         }
 
         .header {
@@ -48,8 +55,10 @@
             display: flex;
             max-width: 1400px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 2rem 0;
             gap: 2rem;
+            width: calc(100% - 40px);
+            box-sizing: border-box;
         }
 
         .sidebar {
@@ -105,6 +114,113 @@
             font-size: 1.1rem;
         }
 
+        /* 端口范围锁定样式 */
+        .port-range-lock {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .port-range-lock h4 {
+            margin: 0 0 1rem 0;
+            color: #4a5568;
+            font-size: 1rem;
+        }
+
+        .range-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            padding: 0.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .lock-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .lock-btn, .reset-btn {
+            flex: 1;
+            padding: 0.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .lock-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .lock-btn:hover {
+            background: #5a67d8;
+        }
+
+        .lock-btn.locked {
+            background: #48bb78;
+        }
+
+        .lock-btn.locked:hover {
+            background: #38a169;
+        }
+
+        .reset-btn {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .reset-btn:hover {
+            background: #cbd5e0;
+        }
+        
+        .lock-btn.locked {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
+        }
+        
+        .lock-btn.locked:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+        }
+        
+        .input-group input:disabled {
+            background-color: #e9ecef;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .container {
             flex: 1;
         }
@@ -117,23 +233,51 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             flex-wrap: wrap;
             gap: 1rem;
             backdrop-filter: blur(10px);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .controls-left {
-            display: flex;
-            align-items: center;
-            gap: 2rem;
-            flex-wrap: wrap;
+            flex: 0 0 auto;
         }
 
-        .controls-right {
+        .controls-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+
+        .filter-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .toggle-row {
             display: flex;
             align-items: center;
             gap: 1rem;
+            justify-content: space-between;
+        }
+
+        .controls-right {
+            flex: 0 0 auto;
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .action-buttons button {
+            width: 120px;
+            min-width: 120px;
+            white-space: nowrap;
         }
 
         .view-toggle {
@@ -159,6 +303,91 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
+        .protocol-toggle {
+            display: flex;
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 0.25rem;
+        }
+
+        .protocol-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .protocol-btn.active {
+            background: white;
+            color: #4a5568;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .protocol-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* 响应式布局 */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                padding: 1rem 0;
+                gap: 1rem;
+            }
+            
+            .sidebar {
+                width: 100%;
+                order: 2;
+            }
+            
+            .container {
+                order: 1;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1.5rem;
+            }
+            
+            .controls-left,
+            .controls-center,
+            .controls-right {
+                width: 100%;
+            }
+            
+            .controls-center {
+                justify-content: stretch;
+            }
+            
+            .filter-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1rem;
+            }
+
+            .toggle-row {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+            
+            .action-buttons {
+                flex-direction: row;
+                justify-content: center;
+                gap: 1rem;
+            }
+            
+            .stats {
+                justify-content: center;
+                gap: 1rem;
+            }
+        }
+        
         .stats {
             display: flex;
             gap: 2rem;
@@ -212,7 +441,6 @@
             font-size: 1rem;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            margin-left: 0.5rem;
         }
 
         .settings-btn:hover {
@@ -897,7 +1125,7 @@
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 0.9rem;
-            width: 200px;
+            width: 100%;
             transition: border-color 0.2s;
         }
         
@@ -963,7 +1191,7 @@
 
     <div class="main-container">
         <div class="sidebar">
-            <h3>📊 端口分类</h3>
+            <h3>📊 端口分类检索</h3>
             <ul class="tab-list">
                 <li class="tab-item">
                     <a class="tab-link active" data-filter="all">
@@ -996,6 +1224,29 @@
                     </a>
                 </li>
             </ul>
+            
+            <!-- 端口范围锁定功能 -->
+            <div class="port-range-lock">
+                <h4>🔒 端口范围锁定</h4>
+                <div class="range-inputs">
+                    <div class="input-group">
+                        <label for="startPort">起始端口:</label>
+                        <input type="number" id="startPort" placeholder="0" min="0" max="65535">
+                    </div>
+                    <div class="input-group">
+                        <label for="endPort">结束端口:</label>
+                        <input type="number" id="endPort" placeholder="65535" min="0" max="65535">
+                    </div>
+                </div>
+                <div class="lock-controls">
+                    <button id="lockRangeBtn" class="lock-btn" onclick="togglePortRangeLock()">
+                        🔓 锁定
+                    </button>
+                    <button id="resetRangeBtn" class="reset-btn" onclick="resetPortRange()">
+                        🔄 解锁
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="container">
@@ -1014,21 +1265,42 @@
                             <div class="stat-number" id="dockerContainers">-</div>
                             <div class="stat-label">Docker容器</div>
                         </div>
+                        <div class="stat-item">
+                            <div class="stat-number" id="tcpUsed">-</div>
+                            <div class="stat-label">TCP端口</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number" id="udpUsed">-</div>
+                            <div class="stat-label">UDP端口</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls-center">
+                    <div class="filter-controls">
+                        <div class="toggle-row">
+                            <div class="protocol-toggle">
+                                <button class="protocol-btn active" data-protocol="all">全部</button>
+                                <button class="protocol-btn" data-protocol="tcp">TCP</button>
+                                <button class="protocol-btn" data-protocol="udp">UDP</button>
+                            </div>
+                            <div class="view-toggle">
+                                <button class="view-btn active" data-view="card">🔲 卡片</button>
+                                <button class="view-btn" data-view="list">📋 列表</button>
+                            </div>
+                        </div>
+                        <div class="search-container">
+                            <input type="text" id="searchInput" placeholder="搜索端口、进程、服务..." class="search-input">
+                            <button id="clearSearch" class="clear-search-btn">✕</button>
+                        </div>
                     </div>
                 </div>
                 <div class="controls-right">
-                    <div class="search-container">
-                        <input type="text" id="searchInput" placeholder="搜索端口、进程、服务..." class="search-input">
-                        <button id="clearSearch" class="clear-search-btn">✕</button>
+                    <div class="action-buttons">
+                        <button class="refresh-btn" onclick="refreshPorts()" id="refreshBtn">
+                            🔄 刷新
+                        </button>
+                        <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
                     </div>
-                    <div class="view-toggle">
-                        <button class="view-btn active" data-view="card">🔲 卡片</button>
-                        <button class="view-btn" data-view="list">📋 列表</button>
-                    </div>
-                    <button class="refresh-btn" onclick="refreshPorts()" id="refreshBtn">
-                        🔄 刷新数据
-                    </button>
-                    <button id="settingsBtn" class="settings-btn" onclick="openSettings()">⚙️ 设置</button>
                 </div>
             </div>
 
@@ -1073,7 +1345,13 @@
         let hiddenPorts = []; // 存储隐藏端口号的数组
         let currentFilter = 'all';
         let currentView = 'card';
+        let currentProtocol = 'all'; // 当前协议过滤器
         let searchTimeout = null;
+        
+        // 端口范围锁定相关变量
+        let isPortRangeLocked = false;
+        let lockedStartPort = 0;
+        let lockedEndPort = 65535;
         
         /**
          * 检查端口是否被隐藏
@@ -1122,6 +1400,14 @@
                 });
             });
             
+            // 协议切换
+            document.querySelectorAll('.protocol-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const protocol = this.getAttribute('data-protocol');
+                    switchProtocol(protocol);
+                });
+            });
+            
             // 搜索功能
             const searchInput = document.getElementById('searchInput');
             const clearSearchBtn = document.getElementById('clearSearch');
@@ -1145,6 +1431,38 @@
                 performSearch();
                 searchInput.focus();
             });
+            
+            // 端口范围锁定功能
+            const lockRangeBtn = document.getElementById('lockRangeBtn');
+            const resetRangeBtn = document.getElementById('resetRangeBtn');
+            
+            if (lockRangeBtn) {
+                lockRangeBtn.addEventListener('click', togglePortRangeLock);
+            }
+            
+            if (resetRangeBtn) {
+                resetRangeBtn.addEventListener('click', resetPortRange);
+            }
+            
+            // 端口输入框回车键监听
+            const startPortInput = document.getElementById('startPort');
+            const endPortInput = document.getElementById('endPort');
+            
+            if (startPortInput) {
+                startPortInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        togglePortRangeLock();
+                    }
+                });
+            }
+            
+            if (endPortInput) {
+                endPortInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        togglePortRangeLock();
+                    }
+                });
+            }
         }
 
         // 切换标签页
@@ -1178,6 +1496,128 @@
             // 重新显示端口
             displayPorts(filterPorts(portsData));
         }
+        
+        // 切换协议过滤器
+        function switchProtocol(protocol) {
+            currentProtocol = protocol;
+            
+            // 更新协议按钮样式
+            document.querySelectorAll('.protocol-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-protocol="${protocol}"]`).classList.add('active');
+            
+            // 重新加载端口数据
+            loadPorts();
+        }
+
+        /**
+         * 切换端口范围锁定状态
+         */
+        function togglePortRangeLock() {
+            const startPortInput = document.getElementById('startPort');
+            const endPortInput = document.getElementById('endPort');
+            const lockBtn = document.getElementById('lockRangeBtn');
+            
+            if (!isPortRangeLocked) {
+                // 获取输入的端口范围
+                const startPort = parseInt(startPortInput.value) || 0;
+                const endPort = parseInt(endPortInput.value) || 65535;
+                
+                // 验证端口范围
+                if (startPort < 0 || startPort > 65535 || endPort < 0 || endPort > 65535) {
+                    alert('端口范围必须在 0-65535 之间');
+                    return;
+                }
+                
+                if (startPort > endPort) {
+                    alert('起始端口不能大于结束端口');
+                    return;
+                }
+                
+                // 锁定范围
+                isPortRangeLocked = true;
+                lockedStartPort = startPort;
+                lockedEndPort = endPort;
+                
+                // 更新按钮状态
+                lockBtn.textContent = '🔒 解锁范围';
+                lockBtn.classList.add('locked');
+                
+                // 禁用输入框
+                startPortInput.disabled = true;
+                endPortInput.disabled = true;
+                
+                console.log(`端口范围已锁定: ${lockedStartPort}-${lockedEndPort}`);
+            } else {
+                // 解锁范围
+                isPortRangeLocked = false;
+                
+                // 更新按钮状态
+                lockBtn.textContent = '🔓 锁定范围';
+                lockBtn.classList.remove('locked');
+                
+                // 启用输入框
+                startPortInput.disabled = false;
+                endPortInput.disabled = false;
+                
+                console.log('端口范围已解锁');
+            }
+            
+            // 重新加载端口数据
+            loadPorts();
+        }
+        
+        /**
+         * 重置端口范围
+         */
+        function resetPortRange() {
+            const startPortInput = document.getElementById('startPort');
+            const endPortInput = document.getElementById('endPort');
+            const lockBtn = document.getElementById('lockRangeBtn');
+            
+            // 重置输入框
+            startPortInput.value = '';
+            endPortInput.value = '';
+            
+            // 如果当前是锁定状态，先解锁
+            if (isPortRangeLocked) {
+                isPortRangeLocked = false;
+                lockBtn.textContent = '🔓 锁定范围';
+                lockBtn.classList.remove('locked');
+                startPortInput.disabled = false;
+                endPortInput.disabled = false;
+            }
+            
+            // 重置范围变量
+            lockedStartPort = 0;
+            lockedEndPort = 65535;
+            
+            console.log('端口范围已重置');
+            
+            // 重新加载端口数据
+            loadPorts();
+        }
+        
+        /**
+         * 检查端口是否在锁定范围内
+         * @param {Object} card - 端口卡片对象
+         * @returns {boolean} - 是否在范围内
+         */
+        function isPortInRange(card) {
+            if (!isPortRangeLocked) {
+                return true; // 未锁定时显示所有端口
+            }
+            
+            if (card.type === 'used') {
+                return card.port >= lockedStartPort && card.port <= lockedEndPort;
+            } else if (card.type === 'gap' || card.type === 'unknown_range') {
+                // 对于范围类型，检查是否有重叠
+                return !(card.end_port < lockedStartPort || card.start_port > lockedEndPort);
+            }
+            
+            return false;
+        }
 
         // 过滤端口数据
         function filterPorts(data) {
@@ -1187,19 +1627,22 @@
                 // 首先检查是否为隐藏端口
                 const isHidden = isPortHidden(card);
                 
+                // 检查是否在端口范围锁定内
+                const inRange = isPortInRange(card);
+                
                 switch (currentFilter) {
                     case 'all':
-                        return !isHidden; // 显示所有非隐藏端口
+                        return !isHidden && inRange; // 显示所有非隐藏且在范围内的端口
                     case 'system':
-                        return !isHidden && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'system';
+                        return !isHidden && inRange && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'system';
                     case 'container':
-                        return !isHidden && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'docker';
+                        return !isHidden && inRange && (card.type === 'used' || card.type === 'unknown_range') && card.source === 'docker';
                     case 'unused':
-                        return !isHidden && card.type === 'gap';
+                        return !isHidden && inRange && card.type === 'gap';
                     case 'hidden':
-                        return isHidden; // 只显示隐藏的端口
+                        return isHidden && inRange; // 只显示隐藏且在范围内的端口
                     default:
-                        return !isHidden;
+                        return !isHidden && inRange;
                 }
             });
             
@@ -1320,7 +1763,27 @@
             containerEl.style.display = 'none';
             
             try {
-                const url = searchTerm ? `/api/ports?search=${encodeURIComponent(searchTerm)}` : '/api/ports';
+                // 构建搜索URL，包含协议过滤器和端口范围
+                let url = '/api/ports';
+                const params = new URLSearchParams();
+                
+                if (searchTerm) {
+                    params.append('search', searchTerm);
+                }
+                if (currentProtocol !== 'all') {
+                    params.append('protocol', currentProtocol.toUpperCase());
+                }
+                
+                // 添加端口范围参数
+                if (isPortRangeLocked && lockedStartPort && lockedEndPort) {
+                    params.append('start_port', lockedStartPort.toString());
+                    params.append('end_port', lockedEndPort.toString());
+                }
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+                
                 const response = await fetch(url);
                 const result = await response.json();
                 
@@ -1360,7 +1823,26 @@
             try {
                 // 清空搜索框
                 document.getElementById('searchInput').value = '';
-                const response = await fetch('/api/ports');
+                
+                // 构建API URL，包含协议过滤器和端口范围
+                let apiUrl = '/api/ports';
+                const params = new URLSearchParams();
+                
+                if (currentProtocol !== 'all') {
+                    params.append('protocol', currentProtocol.toUpperCase());
+                }
+                
+                // 添加端口范围参数
+                if (isPortRangeLocked && lockedStartPort && lockedEndPort) {
+                    params.append('start_port', lockedStartPort.toString());
+                    params.append('end_port', lockedEndPort.toString());
+                }
+                
+                if (params.toString()) {
+                    apiUrl += '?' + params.toString();
+                }
+                
+                const response = await fetch(apiUrl);
                 const result = await response.json();
                 
                 if (result.success) {
@@ -1389,12 +1871,35 @@
             if (range <= 1) {
                 return startPort.toString();
             }
-            // 如果范围很小（<=10），使用紧凑格式
-            if (range <= 10) {
-                return `${startPort}:${range}`;
-            }
-            // 如果范围较大，仍使用传统格式但更紧凑
-            return `${startPort}-${endPort}`;
+            // 使用[port:num]格式显示连续端口范围
+            return `${startPort}:${range}`;
+        }
+
+        /**
+         * 渲染协议标签
+         * 根据协议类型显示不同颜色的标签
+         */
+        function renderProtocolBadges(protocol) {
+            if (!protocol) return '';
+            
+            // 如果协议是字符串，分割成数组
+            const protocols = typeof protocol === 'string' ? protocol.split(',').map(p => p.trim()) : [protocol];
+            
+            return protocols.map(p => {
+                const upperProtocol = p.toUpperCase();
+                let color = '#666';
+                let bgColor = '#e2e8f0';
+                
+                if (upperProtocol === 'TCP') {
+                    color = '#2563eb';
+                    bgColor = '#dbeafe';
+                } else if (upperProtocol === 'UDP') {
+                    color = '#dc2626';
+                    bgColor = '#fee2e2';
+                }
+                
+                return `<span style="font-size: 0.6rem; color: ${color}; background: ${bgColor}; padding: 0.1rem 0.3rem; border-radius: 3px; margin-right: 0.2rem;">${upperProtocol}</span>`;
+            }).join('');
         }
 
         /**
@@ -1483,7 +1988,7 @@
                                 <div class="service-name">${displayName}</div>
                                 ${fullName.length > 15 ? `<span class="tooltiptext">${fullName}</span>` : ''}
                             </div>
-                            ${card.protocol ? `<div style="margin-top: 0.2rem;"><span style="font-size: 0.6rem; color: #666; background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 3px;">${card.protocol.toUpperCase()}</span></div>` : ''}
+                            ${card.protocol ? `<div style="margin-top: 0.2rem;">${renderProtocolBadges(card.protocol)}</div>` : ''}
                         </div>
                         <div class="port-card-footer">
                             <div class="port-card-actions">
@@ -1524,7 +2029,7 @@
                                  </div>
                              </div>
                              <div style="display: flex; gap: 0.5rem; align-items: center; height: 24px;">
-                                 ${card.protocol ? `<span style="font-size: 0.7rem; color: #666; background: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 4px; height: 20px; display: flex; align-items: center; line-height: 20px;">${card.protocol.toUpperCase()}</span>` : ''}
+                                 ${card.protocol ? renderProtocolBadges(card.protocol) : ''}
                                  ${isUnknownService ? `<button class="add-port-btn list-add-btn" onclick="editPortName(${card.port})" title="添加端口到配置文件">+</button>` : ''}
                                  <span class="port-source-badge ${card.source}" style="height: 20px; display: flex; align-items: center; line-height: 20px;">${card.source === 'docker' ? 'Docker' : '宿主机'}</span>
                                  ${isHidden ? 
@@ -1573,7 +2078,7 @@
                             <div class="tooltip">
                                 <div class="service-name">未知服务 (${card.port_count}个端口)</div>
                             </div>
-                            ${card.protocol ? `<div style="margin-top: 0.2rem;"><span style="font-size: 0.6rem; color: #666; background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 3px;">${card.protocol.toUpperCase()}</span></div>` : ''}
+                            ${card.protocol ? `<div style="margin-top: 0.2rem;">${renderProtocolBadges(card.protocol)}</div>` : ''}
                         </div>
                         <div class="port-card-footer">
                             <div class="port-card-actions">
@@ -1628,6 +2133,8 @@
             document.getElementById('totalUsed').textContent = data.total_used || 0;
             document.getElementById('totalAvailable').textContent = data.total_available || 0;
             document.getElementById('dockerContainers').textContent = data.docker_containers || 0;
+            document.getElementById('tcpUsed').textContent = data.tcp_used || 0;
+            document.getElementById('udpUsed').textContent = data.udp_used || 0;
         }
 
         /**
@@ -1747,9 +2254,20 @@
                     return;
                 }
                 
-                // 验证端口号（排除app_settings）
-                for (const [name, port] of Object.entries(newConfig)) {
+                // 验证端口号（排除app_settings），适配新的数据结构
+                for (const [name, value] of Object.entries(newConfig)) {
                     if (name !== 'app_settings') {
+                        let port;
+                        if (typeof value === 'object' && value.port) {
+                            port = value.port;
+                        } else if (typeof value === 'number') {
+                            port = value;
+                        } else {
+                            configError.textContent = `配置项 "${name}" 的格式无效`;
+                            configError.style.display = 'block';
+                            return;
+                        }
+                        
                         if (!Number.isInteger(port) || port < 1 || port > 65535) {
                             configError.textContent = `端口 "${name}" 的值 "${port}" 无效，必须是1-65535之间的整数`;
                             configError.style.display = 'block';

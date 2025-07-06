@@ -48,6 +48,20 @@
 
 ## 🚀 快速开始
 
+### 📦 镜像获取
+
+DockPorts 提供多个镜像源，支持多平台架构：
+
+| 镜像源 | 镜像地址 | 支持架构 | 说明 |
+|--------|----------|----------|------|
+| **GitHub Container Registry** | `ghcr.io/coracoo/dockports:latest` | `amd64`, `arm64`, `arm/v7` | 官方推荐，全球访问 |
+| **阿里云容器镜像服务** | `registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest` | `amd64`, `arm64`, `arm/v7` | 国内用户推荐，访问更快 |
+
+**支持的平台：**
+- `linux/amd64` - x86_64 架构（Intel/AMD 处理器）
+- `linux/arm64` - ARM64 架构（Apple M1/M2、树莓派4等）
+- `linux/arm/v7` - ARMv7 架构（树莓派3等）
+
 ### 使用Docker Compose（推荐）
 
 1. 克隆项目：
@@ -56,15 +70,29 @@ git clone https://github.com/coracoo/DockPorts.git
 cd DockPorts
 ```
 
-2. 启动服务：
+2. **选择镜像源**（可选）：
+   
+   默认使用 GitHub 镜像，如需使用阿里云镜像，请修改 `docker-compose.yml`：
+   ```yaml
+   services:
+     dockports:
+       # 将下面这行：
+       # image: ghcr.io/coracoo/dockports:latest
+       # 替换为：
+       image: registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+   ```
+
+3. 启动服务：
 ```bash
 docker-compose up -d
 ```
 
-3. 访问应用：
+4. 访问应用：
 打开浏览器访问 `http://localhost:7577`
 
 ### 使用Docker运行
+
+#### 使用GitHub镜像（国外用户推荐）
 
 ```bash
 # 使用默认端口7577
@@ -81,7 +109,7 @@ docker run -d \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
-  -e DOCKPORTS_PORT=8080
+  -e DOCKPORTS_PORT=8080 \
   ghcr.io/coracoo/dockports:latest
 
 # 启用调试模式
@@ -91,6 +119,35 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
   ghcr.io/coracoo/dockports:latest --debug
+```
+
+#### 使用阿里云镜像（国内用户推荐）
+
+```bash
+# 使用默认端口7577
+docker run -d \
+  --name dockports \
+  --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+
+# 使用自定义端口8080
+docker run -d \
+  --name dockports \
+  --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  -e DOCKPORTS_PORT=8080 \
+  registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+
+# 启用调试模式
+docker run -d \
+  --name dockports \
+  --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest --debug
 ```
 
 ### 本地开发
@@ -121,6 +178,67 @@ python app.py --help
 - Docker Compose 2.0+
 - Linux系统（支持netstat命令）
 - 端口7577可用
+
+## 🔧 技术架构
+
+- **后端**: Python Flask + Docker API + psutil
+- **前端**: HTML + CSS + JavaScript (原生)
+- **容器化**: Docker + Docker Compose
+- **CI/CD**: GitHub Actions + 多平台构建
+- **镜像分发**: GitHub Container Registry + 阿里云容器镜像服务
+
+### 🏗️ CI/CD 流程
+
+项目采用 GitHub Actions 实现自动化构建和发布：
+
+1. **触发条件**：
+   - 推送版本标签（`v*.*.*`格式）
+   - 手动触发工作流
+
+2. **多平台构建**：
+   - 使用 Docker Buildx 构建多架构镜像
+   - 支持 `linux/amd64`、`linux/arm64`、`linux/arm/v7`
+   - 利用 QEMU 实现跨平台编译
+
+3. **镜像发布**：
+   - **GitHub Container Registry**: `ghcr.io/coracoo/dockports`
+   - **阿里云容器镜像服务**: `registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports`
+
+4. **版本管理**：
+   - 自动提取语义化版本号
+   - 同时推送版本标签和 `latest` 标签
+   - 包含完整的镜像元数据和标签
+
+### Host网络容器端口检测机制
+
+对于使用host网络模式的Docker容器，DockPorts采用多维度智能检测机制：
+
+1. **ExposedPorts配置检测**
+   - 从容器的`Config.ExposedPorts`中获取声明的端口
+   - 解析端口格式（如`80/tcp`、`53/udp`）
+
+2. **Healthcheck健康检查检测**
+   - 解析`Config.Healthcheck.Test`命令
+   - 使用正则表达式匹配`localhost:port`、`127.0.0.1:port`等模式
+   - 自动提取健康检查中使用的端口号
+
+3. **Entrypoint和Cmd命令检测**
+   - 分析容器启动命令和入口点
+   - 支持多种端口参数格式：
+     - `--port=8080`、`--port 8080`
+     - `-p=8080`、`-p 8080`
+     - `--listen=8080`、`--bind=0.0.0.0:8080`
+     - 通用`:port`模式
+
+4. **环境变量检测**
+   - 扫描容器环境变量中的端口配置
+   - 识别`PORT`、`HTTP_PORT`、`LISTEN_PORT`等常见变量
+   - 从变量值中提取端口号
+
+5. **智能端口合并**
+   - 将所有检测到的端口合并到`exposed_ports`集合
+   - 提供详细的端口来源分类（健康检查、入口点、环境变量等）
+   - 避免重复端口，确保数据准确性
 
 ## 🔧 配置说明
 
@@ -157,6 +275,43 @@ docker run -d --name dockports --network host \
 
 # 在docker-compose中使用命令行参数
 # 取消注释 docker-compose.yml 中的 command 行并修改参数
+```
+
+### 环境变量支持
+
+除了命令行参数外，DockPorts还支持通过环境变量进行配置：
+
+| 环境变量 | 对应参数 | 默认值 | 说明 |
+|----------|----------|--------|------|
+| `DOCKPORTS_PORT` | `--port` | 7577 | Web服务端口 |
+| `DOCKPORTS_HOST` | `--host` | 0.0.0.0 | Web服务监听地址 |
+| `DOCKPORTS_DEBUG` | `--debug` | false | 启用调试模式（设置为true、1或yes） |
+
+**配置优先级：** 命令行参数 > 环境变量 > 默认值
+
+**使用示例：**
+```bash
+# 使用环境变量设置端口
+export DOCKPORTS_PORT=8080
+python app.py
+
+# 使用环境变量启用调试模式
+export DOCKPORTS_DEBUG=true
+python app.py
+
+# Docker容器中使用环境变量
+docker run -d --name dockports --network host \
+  -e DOCKPORTS_PORT=8080 \
+  -e DOCKPORTS_DEBUG=true \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -v ./config:/app/config \
+  dockports
+
+# docker-compose中使用环境变量
+# 在docker-compose.yml的environment部分添加：
+# environment:
+#   - DOCKPORTS_PORT=8080
+#   - DOCKPORTS_DEBUG=true
 ```
 
 ### 卷映射
@@ -280,26 +435,45 @@ docker run -d --name dockports --network host \
 
 ### 常见问题
 
-1. **无法连接Docker**：
+1. **镜像拉取失败**：
+   - **GitHub镜像拉取慢**：尝试使用阿里云镜像
+     ```bash
+     docker pull registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+     ```
+   - **阿里云镜像访问失败**：切换回GitHub镜像
+     ```bash
+     docker pull ghcr.io/coracoo/dockports:latest
+     ```
+   - **架构不匹配**：确认您的设备架构，镜像支持 `amd64`、`arm64`、`arm/v7`
+
+2. **无法连接Docker**：
    - 确保Docker socket已正确映射
    - 检查容器是否有访问Docker的权限
 
-2. **netstat命令不可用**：
+3. **netstat命令不可用**：
    - 确保容器内安装了net-tools包
    - 检查/proc目录是否正确映射
 
-3. **端口7577被占用**：
+4. **端口7577被占用**：
    - 修改docker-compose.yml中的端口映射
    - 或停止占用该端口的服务
+   - 使用环境变量自定义端口：`-e DOCKPORTS_PORT=8080`
 
-4. **隐藏端口功能异常**：
+5. **隐藏端口功能异常**：
    - 检查config/hidden_ports.json文件权限
    - 确保容器有写入配置文件的权限
    - 查看浏览器控制台是否有JavaScript错误
 
-5. **取消隐藏端口范围失败**：
+6. **取消隐藏端口范围失败**：
    - 确保使用最新版本，包含批量取消隐藏API
    - 检查网络连接和API响应
+
+7. **多架构部署问题**：
+   - 树莓派等ARM设备确保使用正确的架构标签
+   - 如遇到架构问题，可以手动指定平台：
+     ```bash
+     docker run --platform linux/arm64 ...
+     ```
 
 ### 日志查看
 
@@ -323,7 +497,25 @@ docker logs -f dockports
 
 ## 📝 更新日志
 
-### v0.1.0 (最新)
+### v0.2.0 (最新)
+- 🌐 **多平台支持**：新增 ARM64 和 ARMv7 架构支持
+- 🚀 **阿里云镜像**：发布阿里云容器镜像服务，国内用户访问更快
+- 🏗️ **CI/CD优化**：GitHub Actions 自动化多平台构建和发布
+- 🔧 **端口范围锁定**：新增端口范围锁定功能，支持指定范围查看
+- 📊 **前端优化**：修复端口范围锁定后的数据刷新问题
+- 🐳 **镜像分发**：同时发布到 GitHub Container Registry 和阿里云
+- 📖 **文档完善**：更新README，添加多镜像源使用说明
+- 🔌 **协议区分**：支持UDP/TCP协议过滤和统计，提供协议切换按钮
+
+### v0.1.2
+- 🔧 修复自定义端口启动失败问题
+- 📊 增强启动日志，显示实际使用的配置参数
+
+### v0.1.1
+- 🔧 增加host网络模式的处理
+- 🐳 优化Docker容器端口检测机制
+
+### v0.1.0 
 - ⚙️ 新增命令行参数支持（--port, --host, --debug）
 - 🔧 支持自定义Web服务端口，解决host网络模式下端口冲突问题
 - 🐳 优化Docker镜像构建，支持ENTRYPOINT传参

@@ -23,7 +23,10 @@ from functools import lru_cache
 import argparse
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:%(name)s:%(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -82,22 +85,45 @@ def init_config():
         print(f"隐藏端口配置文件已存在: {HIDDEN_PORTS_FILE}")
 
 def load_config():
-    """加载配置文件"""
+    """加载配置文件，支持UDP协议标记"""
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            raw_config = json.load(f)
+        
+        # 处理配置文件，支持name:port:udp格式
+        processed_config = {}
+        for key, value in raw_config.items():
+            if isinstance(value, str) and ':' in value:
+                # 解析name:port:protocol格式
+                parts = value.split(':')
+                if len(parts) >= 2:
+                    try:
+                        port = int(parts[-2] if len(parts) >= 3 else parts[-1])
+                        protocol = parts[-1].upper() if len(parts) >= 3 and parts[-1].upper() in ['TCP', 'UDP'] else 'TCP'
+                        processed_config[key] = {'port': port, 'protocol': protocol}
+                    except ValueError:
+                        processed_config[key] = value
+                else:
+                    processed_config[key] = value
+            elif isinstance(value, int):
+                # 默认为TCP协议
+                processed_config[key] = {'port': value, 'protocol': 'TCP'}
+            else:
+                processed_config[key] = value
+        
+        return processed_config
     except Exception as e:
         print(f"加载配置文件失败: {e}")
         # 返回默认配置
         return {
-            "ssh": 22,
-            "http": 80,
-            "https": 443,
-            "mysql": 3306,
-            "postgresql": 5432,
-            "redis": 6379,
-            "mongodb": 27017,
-            "elasticsearch": 9200,
+            "ssh": {'port': 22, 'protocol': 'TCP'},
+            "http": {'port': 80, 'protocol': 'TCP'},
+            "https": {'port': 443, 'protocol': 'TCP'},
+            "mysql": {'port': 3306, 'protocol': 'TCP'},
+            "postgresql": {'port': 5432, 'protocol': 'TCP'},
+            "redis": {'port': 6379, 'protocol': 'TCP'},
+            "mongodb": {'port': 27017, 'protocol': 'TCP'},
+            "elasticsearch": {'port': 9200, 'protocol': 'TCP'},
             "app_settings": {
                 "host": "0.0.0.0",
                 "port": 7577,
@@ -106,10 +132,24 @@ def load_config():
         }
 
 def save_config(config):
-    """保存配置文件"""
+    """保存配置文件，支持UDP协议标记"""
     try:
+        # 处理配置文件，将协议信息转换为字符串格式
+        raw_config = {}
+        for key, value in config.items():
+            if isinstance(value, dict) and 'port' in value and 'protocol' in value:
+                port = value['port']
+                protocol = value['protocol']
+                if protocol.upper() == 'UDP':
+                    raw_config[key] = f"{port}:udp"
+                else:
+                    # TCP协议可以省略，直接使用端口号
+                    raw_config[key] = port
+            else:
+                raw_config[key] = value
+        
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+            json.dump(raw_config, f, indent=2, ensure_ascii=False)
         return True
     except Exception as e:
         print(f"保存配置文件失败: {e}")
@@ -335,8 +375,13 @@ class PortMonitor:
     
     def get_service_name(self, port):
         """根据端口号获取服务名称（仅使用配置文件映射）"""
-        # 从配置文件获取端口映射
-        config_ports = {k: v for k, v in config.items() if isinstance(v, int)}
+        # 从配置文件获取端口映射，适配新的数据结构
+        config_ports = {}
+        for k, v in config.items():
+            if isinstance(v, dict) and 'port' in v:
+                config_ports[k] = v['port']
+            elif isinstance(v, int):
+                config_ports[k] = v
         
         # 创建端口到服务名的映射（反向映射）
         port_to_service = {v: k for k, v in config_ports.items()}
@@ -353,8 +398,9 @@ class PortMonitor:
         return '未知服务'
     
     def get_host_network_containers_cached(self):
-        """获取host网络容器信息（带缓存，简化版本）"""
+        """获取host网络容器信息（带缓存，增强版本）"""
         import time
+        import re
         
         current_time = time.time()
         
@@ -379,10 +425,13 @@ class PortMonitor:
                         'name': container.name,
                         'id': container.id[:12],
                         'image': container.image.tags[0] if container.image.tags else 'unknown',
-                        'exposed_ports': set()
+                        'exposed_ports': set(),
+                        'potential_ports': set(),  # 从其他配置推断的可能端口
+                        'healthcheck_ports': set(),  # 从健康检查推断的端口
+                        'entrypoint_ports': set()   # 从入口点推断的端口
                     }
                     
-                    # 获取容器的ExposedPorts
+                    # 1. 获取容器的ExposedPorts
                     try:
                         exposed_ports = container.attrs.get('Config', {}).get('ExposedPorts', {})
                         if exposed_ports:
@@ -395,6 +444,90 @@ class PortMonitor:
                     except Exception as e:
                         logger.debug(f"获取容器 {container.name} ExposedPorts失败: {e}")
                     
+                    # 2. 检查Healthcheck配置中的端口
+                    try:
+                        healthcheck = container.attrs.get('Config', {}).get('Healthcheck', {})
+                        if healthcheck and 'Test' in healthcheck:
+                            test_cmd = ' '.join(healthcheck['Test']) if isinstance(healthcheck['Test'], list) else str(healthcheck['Test'])
+                            # 使用正则表达式查找端口号
+                            port_matches = re.findall(r'(?:localhost|127\.0\.0\.1|0\.0\.0\.0):?(\d{1,5})', test_cmd)
+                            for port_str in port_matches:
+                                try:
+                                    port_num = int(port_str)
+                                    if 1 <= port_num <= 65535:
+                                        container_info['healthcheck_ports'].add(port_num)
+                                        container_info['potential_ports'].add(port_num)
+                                        logger.debug(f"容器 {container.name} 健康检查端口: {port_num}")
+                                except ValueError:
+                                    continue
+                    except Exception as e:
+                        logger.debug(f"获取容器 {container.name} Healthcheck失败: {e}")
+                    
+                    # 3. 检查Entrypoint和Cmd中的端口
+                    try:
+                        # 检查Entrypoint
+                        entrypoint = container.attrs.get('Config', {}).get('Entrypoint', [])
+                        cmd = container.attrs.get('Config', {}).get('Cmd', [])
+                        
+                        # 合并entrypoint和cmd
+                        full_command = []
+                        if entrypoint:
+                            full_command.extend(entrypoint if isinstance(entrypoint, list) else [entrypoint])
+                        if cmd:
+                            full_command.extend(cmd if isinstance(cmd, list) else [cmd])
+                        
+                        command_str = ' '.join(str(arg) for arg in full_command)
+                        
+                        # 查找常见的端口参数模式
+                        port_patterns = [
+                            r'--port[=\s]+(\d{1,5})',      # --port=8080 或 --port 8080
+                            r'-p[=\s]+(\d{1,5})',          # -p=8080 或 -p 8080
+                            r'--listen[=\s]+(\d{1,5})',    # --listen=8080
+                            r'--bind[=\s]+[^:]*:(\d{1,5})', # --bind=0.0.0.0:8080
+                            r':(\d{1,5})\b',               # 通用的 :端口 模式
+                            r'PORT[=\s]+(\d{1,5})',        # PORT=8080
+                            r'HTTP_PORT[=\s]+(\d{1,5})',   # HTTP_PORT=8080
+                        ]
+                        
+                        for pattern in port_patterns:
+                            matches = re.findall(pattern, command_str, re.IGNORECASE)
+                            for port_str in matches:
+                                try:
+                                    port_num = int(port_str)
+                                    if 1 <= port_num <= 65535:
+                                        container_info['entrypoint_ports'].add(port_num)
+                                        container_info['potential_ports'].add(port_num)
+                                        logger.debug(f"容器 {container.name} 入口点端口: {port_num}")
+                                except ValueError:
+                                    continue
+                                    
+                    except Exception as e:
+                        logger.debug(f"获取容器 {container.name} Entrypoint/Cmd失败: {e}")
+                    
+                    # 4. 检查环境变量中的端口
+                    try:
+                        env_vars = container.attrs.get('Config', {}).get('Env', [])
+                        for env_var in env_vars:
+                            if '=' in env_var:
+                                key, value = env_var.split('=', 1)
+                                # 查找端口相关的环境变量
+                                if any(port_keyword in key.upper() for port_keyword in ['PORT', 'LISTEN', 'BIND']):
+                                    try:
+                                        # 尝试从环境变量值中提取端口号
+                                        port_matches = re.findall(r'\b(\d{1,5})\b', value)
+                                        for port_str in port_matches:
+                                            port_num = int(port_str)
+                                            if 1 <= port_num <= 65535:
+                                                container_info['potential_ports'].add(port_num)
+                                                logger.debug(f"容器 {container.name} 环境变量端口: {port_num} (来自 {key})")
+                                    except (ValueError, AttributeError):
+                                        continue
+                    except Exception as e:
+                        logger.debug(f"获取容器 {container.name} 环境变量失败: {e}")
+                    
+                    # 合并所有端口到exposed_ports中
+                    container_info['exposed_ports'].update(container_info['potential_ports'])
+                    
                     self.container_cache[container.name] = container_info
                     
         except Exception as e:
@@ -403,29 +536,71 @@ class PortMonitor:
         self.cache_timestamp = current_time
         return self.container_cache
     
-    def get_port_analysis(self, start_port=1, end_port=65535):
+    def get_port_analysis(self, start_port=1, end_port=65535, protocol_filter=None):
         """分析端口使用情况并生成可视化数据"""
         docker_ports = self.get_docker_ports()
         host_ports_info = self.get_host_ports()
         
-        # 合并所有已使用的端口
-        used_ports = set(host_ports_info.keys())
-        docker_port_map = {}
+        # 初始化端口卡片列表
+        port_cards = []
         
+        # 分别处理TCP和UDP端口
+        tcp_ports = set()
+        udp_ports = set()
+        port_protocol_map = {}  # 端口到协议的映射
+        
+        # 处理主机端口信息，区分TCP和UDP，并应用端口范围过滤
+        for port, info in host_ports_info.items():
+            # 应用端口范围过滤
+            if port < start_port or port > end_port:
+                continue
+                
+            protocol = info.get('protocol', 'TCP')
+            port_protocol_map[port] = protocol
+            
+            # 根据协议分类端口
+            if 'TCP' in protocol.upper():
+                tcp_ports.add(port)
+            if 'UDP' in protocol.upper():
+                udp_ports.add(port)
+        
+        # 处理Docker端口（通常是TCP），并应用端口范围过滤
+        docker_port_map = {}
         for port_info in docker_ports:
             if port_info['port']:
-                used_ports.add(port_info['port'])
-                docker_port_map[port_info['port']] = port_info
+                port = port_info['port']
+                # 应用端口范围过滤
+                if port < start_port or port > end_port:
+                    continue
+                    
+                tcp_ports.add(port)  # Docker端口映射通常是TCP
+                docker_port_map[port] = port_info
+                if port not in port_protocol_map:
+                    port_protocol_map[port] = 'TCP'
         
-        # 生成端口卡片数据
-        port_cards = []
-        sorted_ports = sorted(used_ports)
+        # 根据协议过滤器选择端口
+        if protocol_filter == 'TCP':
+            filtered_ports = tcp_ports
+            logger.info(f"TCP协议过滤: 发现 {len(tcp_ports)} 个TCP端口")
+        elif protocol_filter == 'UDP':
+            filtered_ports = udp_ports
+            logger.info(f"UDP协议过滤: 发现 {len(udp_ports)} 个UDP端口")
+        else:
+            # 显示所有端口
+            filtered_ports = tcp_ports.union(udp_ports)
+            logger.info(f"总共发现 {len(filtered_ports)} 个已使用端口 (TCP: {len(tcp_ports)}, UDP: {len(udp_ports)})")
         
-        logger.info(f"总共发现 {len(sorted_ports)} 个已使用端口")
+        sorted_ports = sorted(filtered_ports)
         
         # 预处理：收集所有端口信息
         port_data_list = []
         for port in sorted_ports:
+            protocol = port_protocol_map.get(port, 'TCP')
+            
+            # 如果有协议过滤器，跳过不匹配的端口
+            if protocol_filter and protocol_filter.upper() not in protocol.upper():
+                continue
+            
             if port in docker_port_map:
                 # Docker容器端口
                 docker_info = docker_port_map[port]
@@ -433,7 +608,7 @@ class PortMonitor:
                     'port': port,
                     'type': 'used',
                     'source': 'docker',
-                    'protocol': 'TCP',  # Docker端口映射通常是TCP
+                    'protocol': protocol,
                     'container': docker_info['container_name'],
                     'process': f"Docker: {docker_info['container_name']}",
                     'image': docker_info.get('image', ''),
@@ -451,7 +626,7 @@ class PortMonitor:
                     'port': port,
                     'type': 'used',
                     'source': 'docker' if is_host_container else 'system',
-                    'protocol': host_info.get('protocol', 'TCP'),
+                    'protocol': protocol,
                     'service_name': host_info.get('service_name', '未知服务'),
                     'container': host_info.get('container_name'),
                     'is_host_network': is_host_container
@@ -477,14 +652,14 @@ class PortMonitor:
                 
                 # 如果有连续的未知端口（2个或以上），则合并
                 if len(consecutive_unknown) >= 2:
-                    start_port = consecutive_unknown[0]['port']
-                    end_port = consecutive_unknown[-1]['port']
+                    range_start_port = consecutive_unknown[0]['port']
+                    range_end_port = consecutive_unknown[-1]['port']
                     
                     # 创建合并的端口卡片
                     merged_card = {
                         'type': 'unknown_range',
-                        'start_port': start_port,
-                        'end_port': end_port,
+                        'start_port': range_start_port,
+                        'end_port': range_end_port,
                         'port_count': len(consecutive_unknown),
                         'source': consecutive_unknown[0]['source'],
                         'protocol': consecutive_unknown[0]['protocol'],
@@ -530,9 +705,13 @@ class PortMonitor:
         if port_cards:
             # 获取最后一个卡片的最后端口
             last_card = port_cards[-1]
+            
             if last_card['type'] == 'gap':
-                # 如果最后一个是gap卡片，不需要再添加
-                pass
+                # 如果最后一个是gap卡片，检查是否到达65535
+                if last_card['end_port'] < end_port:
+                    # 更新最后一个gap卡片到65535
+                    last_card['end_port'] = end_port
+                    last_card['available_count'] = last_card['end_port'] - last_card['start_port'] + 1
             else:
                 if last_card['type'] == 'unknown_range':
                     last_port = last_card['end_port']
@@ -549,6 +728,15 @@ class PortMonitor:
                             'available_count': final_gap
                         }
                         port_cards.append(gap_card)
+        else:
+            # 如果没有任何端口卡片，创建一个从1到65535的完整gap
+            gap_card = {
+                'type': 'gap',
+                'start_port': start_port,
+                'end_port': end_port,
+                'available_count': end_port - start_port + 1
+            }
+            port_cards.append(gap_card)
         
         # 统计Docker容器数量
         docker_container_count = len(set(
@@ -557,8 +745,15 @@ class PortMonitor:
             if p.get('source') == 'docker' and p.get('container')
         ))
         
-        # 计算可用端口数量（65535减去已使用端口数）
-        available_ports = 65535 - len(used_ports)
+        # 计算可用端口数量（基于指定的端口范围）
+        total_ports_in_range = end_port - start_port + 1
+        if protocol_filter:
+            # 如果有协议过滤器，可用端口数量是范围内总端口数减去该协议的已使用端口数
+            available_ports = total_ports_in_range - len(filtered_ports)
+        else:
+            # 显示所有协议时，可用端口数量是范围内总端口数减去所有已使用端口数
+            all_used_ports = tcp_ports.union(udp_ports)
+            available_ports = total_ports_in_range - len(all_used_ports)
         
         # 过滤隐藏的端口
         hidden_ports = load_hidden_ports()
@@ -585,10 +780,13 @@ class PortMonitor:
         
         return {
             'port_cards': port_cards,
-            'total_used': len(used_ports),
+            'total_used': len(filtered_ports),
             'total_available': available_ports,
+            'tcp_used': len(tcp_ports),
+            'udp_used': len(udp_ports),
             'docker_containers': docker_container_count,
-            'hidden_ports': hidden_ports
+            'hidden_ports': hidden_ports,
+            'protocol_filter': protocol_filter
         }
 
 # 创建端口监控实例
@@ -603,7 +801,34 @@ def index():
 def api_ports():
     """获取端口信息API"""
     try:
-        port_data = port_monitor.get_port_analysis()
+        # 获取协议过滤器参数
+        protocol_filter = request.args.get('protocol', '').strip().upper()
+        if protocol_filter not in ['TCP', 'UDP', '']:
+            protocol_filter = None
+        
+        # 获取端口范围参数
+        start_port = request.args.get('start_port', '1')
+        end_port = request.args.get('end_port', '65535')
+        
+        # 验证端口范围参数
+        try:
+            start_port = int(start_port)
+            end_port = int(end_port)
+            
+            # 确保端口范围有效
+            if start_port < 1:
+                start_port = 1
+            if end_port > 65535:
+                end_port = 65535
+            if start_port > end_port:
+                start_port, end_port = end_port, start_port
+                
+        except ValueError:
+            # 如果参数无效，使用默认范围
+            start_port = 1
+            end_port = 65535
+        
+        port_data = port_monitor.get_port_analysis(start_port=start_port, end_port=end_port, protocol_filter=protocol_filter)
         
         # 处理搜索参数
         search = request.args.get('search', '').strip().lower()
@@ -640,9 +865,9 @@ def api_ports():
                     is_match = search in searchable_text
                     if not is_match and search.isdigit():
                         search_port = int(search)
-                        start_port = card.get('start_port', 0)
-                        end_port = card.get('end_port', 0)
-                        if start_port <= search_port <= end_port:
+                        card_start_port = card.get('start_port', 0)
+                        card_end_port = card.get('end_port', 0)
+                        if card_start_port <= search_port <= card_end_port:
                             is_match = True
                     
                     if is_match:
@@ -660,9 +885,9 @@ def api_ports():
                     is_match = search in searchable_text
                     if not is_match and search.isdigit():
                         search_port = int(search)
-                        start_port = card.get('start_port', 0)
-                        end_port = card.get('end_port', 0)
-                        if start_port <= search_port <= end_port:
+                        gap_start_port = card.get('start_port', 0)
+                        gap_end_port = card.get('end_port', 0)
+                        if gap_start_port <= search_port <= gap_end_port:
                             is_match = True
                     
                     if is_match:
@@ -725,9 +950,15 @@ def api_save_config():
             # 加载当前配置
             current_config = load_config()
             
-            # 检查端口是否已存在
+            # 检查端口是否已存在，适配新的数据结构
             existing_service = None
-            for service, existing_port in current_config.items():
+            for service, config_value in current_config.items():
+                existing_port = None
+                if isinstance(config_value, dict) and 'port' in config_value:
+                    existing_port = config_value['port']
+                elif isinstance(config_value, int):
+                    existing_port = config_value
+                
                 if existing_port == port:
                     existing_service = service
                     break
@@ -735,10 +966,10 @@ def api_save_config():
             if existing_service:
                 # 更新现有端口的服务名称
                 del current_config[existing_service]
-                current_config[service_name] = port
+                current_config[service_name] = {'port': port, 'protocol': 'TCP'}
             else:
                 # 添加新的端口配置
-                current_config[service_name] = port
+                current_config[service_name] = {'port': port, 'protocol': 'TCP'}
             
             # 保存配置
             if save_config(current_config):
@@ -952,21 +1183,46 @@ def api_unhide_ports_batch():
         }), 500
 
 def parse_args():
-    """解析命令行参数"""
+    """解析命令行参数和环境变量"""
+    # 从环境变量获取默认值
+    default_port = int(os.environ.get('DOCKPORTS_PORT', 7577))
+    default_host = os.environ.get('DOCKPORTS_HOST', '0.0.0.0')
+    default_debug = os.environ.get('DOCKPORTS_DEBUG', '').lower() in ('true', '1', 'yes')
+    
     parser = argparse.ArgumentParser(description='DockPorts - 容器端口监控工具')
-    parser.add_argument('--port', '-p', type=int, default=7577,
-                        help='Web服务端口 (默认: 7577)')
-    parser.add_argument('--host', type=str, default='0.0.0.0',
-                        help='Web服务监听地址 (默认: 0.0.0.0)')
-    parser.add_argument('--debug', action='store_true',
-                        help='启用调试模式')
+    parser.add_argument('--port', '-p', type=int, default=default_port,
+                        help=f'Web服务端口 (默认: {default_port}, 可通过环境变量DOCKPORTS_PORT设置)')
+    parser.add_argument('--host', type=str, default=default_host,
+                        help=f'Web服务监听地址 (默认: {default_host}, 可通过环境变量DOCKPORTS_HOST设置)')
+    parser.add_argument('--debug', action='store_true', default=default_debug,
+                        help='启用调试模式 (可通过环境变量DOCKPORTS_DEBUG=true设置)')
     return parser.parse_args()
 
 if __name__ == '__main__':
     # 解析命令行参数
     args = parse_args()
     
-    logger.info(f"启动DockPorts应用 - 监听地址: {args.host}:{args.port}")
+    # 显示配置信息
+    logger.info("=== DockPorts 启动配置 ===")
+    logger.info(f"监听地址: {args.host}")
+    logger.info(f"监听端口: {args.port}")
+    logger.info(f"调试模式: {args.debug}")
+    
+    # 显示环境变量信息（用于调试）
+    env_port = os.environ.get('DOCKPORTS_PORT')
+    env_host = os.environ.get('DOCKPORTS_HOST')
+    env_debug = os.environ.get('DOCKPORTS_DEBUG')
+    
+    if env_port or env_host or env_debug:
+        logger.info("=== 环境变量配置 ===")
+        if env_port:
+            logger.info(f"DOCKPORTS_PORT: {env_port}")
+        if env_host:
+            logger.info(f"DOCKPORTS_HOST: {env_host}")
+        if env_debug:
+            logger.info(f"DOCKPORTS_DEBUG: {env_debug}")
+    
+    logger.info("=========================")
     
     # 验证端口范围
     if not (1 <= args.port <= 65535):

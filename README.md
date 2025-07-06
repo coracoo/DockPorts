@@ -55,12 +55,18 @@ DockPorts 提供多个镜像源，支持多平台架构：
 | 镜像源 | 镜像地址 | 支持架构 | 说明 |
 |--------|----------|----------|------|
 | **GitHub Container Registry** | `ghcr.io/coracoo/dockports:latest` | `amd64`, `arm64`, `arm/v7` | 官方推荐，全球访问 |
-| **阿里云容器镜像服务** | `registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest` | `amd64`, `arm64`, `arm/v7` | 国内用户推荐，访问更快 |
+| **阿里云容器镜像服务** | `crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest` | `amd64`, `arm64`, `arm/v7` | 国内用户推荐，访问更快 |
 
 **支持的平台：**
 - `linux/amd64` - x86_64 架构（Intel/AMD 处理器）
 - `linux/arm64` - ARM64 架构（Apple M1/M2、树莓派4等）
 - `linux/arm/v7` - ARMv7 架构（树莓派3等）
+
+**版本标签说明：**
+- `latest` - 最新稳定版本（推荐生产环境使用）
+- `v0.2.0` - 具体版本号（推荐锁定版本使用）
+- `v0.2` - 主要版本号（自动获取最新的0.2.x版本）
+- `v0` - 大版本号（自动获取最新的0.x.x版本）
 
 ### 使用Docker Compose（推荐）
 
@@ -79,7 +85,7 @@ cd DockPorts
        # 将下面这行：
        # image: ghcr.io/coracoo/dockports:latest
        # 替换为：
-       image: registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+       image: crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest
    ```
 
 3. 启动服务：
@@ -130,7 +136,7 @@ docker run -d \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
-  registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+  crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest
 
 # 使用自定义端口8080
 docker run -d \
@@ -139,7 +145,7 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
   -e DOCKPORTS_PORT=8080 \
-  registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+  crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest
 
 # 启用调试模式
 docker run -d \
@@ -147,7 +153,7 @@ docker run -d \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v ./config:/app/config \
-  registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest --debug
+  crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest --debug
 ```
 
 ### 本地开发
@@ -202,12 +208,13 @@ python app.py --help
 
 3. **镜像发布**：
    - **GitHub Container Registry**: `ghcr.io/coracoo/dockports`
-   - **阿里云容器镜像服务**: `registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports`
+   - **阿里云容器镜像服务**: `crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports`
 
 4. **版本管理**：
-   - 自动提取语义化版本号
-   - 同时推送版本标签和 `latest` 标签
+   - 自动提取语义化版本号（如 v1.2.3）
+   - 生成多个版本标签：`v1.2.3`、`v1.2`、`v1`、`latest`
    - 包含完整的镜像元数据和标签
+   - 支持版本回滚和多版本并存
 
 ### Host网络容器端口检测机制
 
@@ -436,9 +443,9 @@ docker run -d --name dockports --network host \
 ### 常见问题
 
 1. **镜像拉取失败**：
-   - **GitHub镜像拉取慢**：尝试使用阿里云镜像
+   - **阿里云镜像拉取慢**：尝试使用阿里云镜像
      ```bash
-     docker pull registry.cn-hangzhou.aliyuncs.com/cherry4nas/dockports:latest
+     docker pull crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest
      ```
    - **阿里云镜像访问失败**：切换回GitHub镜像
      ```bash

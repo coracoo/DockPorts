@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   dockports:
-    image: ghcr.io/coracoo/dockports:latest
+    image: crpi-xg6dfmt5h2etc7hg.cn-hangzhou.personal.cr.aliyuncs.com/cherry4nas/dockports:latest # 国内镜像
+    # image: ghcr.io/coracoo/dockports:latest # github镜像
     container_name: dockports
     network_mode: host
     volumes:

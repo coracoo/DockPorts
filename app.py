@@ -57,14 +57,15 @@ def init_config():
         else:
             # 如果示例文件不存在，创建默认配置（向后兼容）
             default_config = {
-                "远程登录": 22,
-                "网页服务": 80,
-                "安全网页": 443,
-                "MySQL数据库": 3306,
-                "PostgreSQL数据库": 5432,
-                "Redis缓存": 6379,
-                "MongoDB数据库": 27017,
-                "搜索分析": 9200
+                "远程登录:host": "22:tcp",
+                "HTTP:host": "80:tcp",
+                "HTTPS:host": "443:tcp",
+                "MySQL数据库:host": "3306:tcp",
+                "PostgreSQL数据库:host": "5432:tcp",
+                "Redis缓存:host": "6379:tcp",
+                "MongoDB数据库:host": "27017:tcp",
+                "搜索分析:host": "9200:tcp",
+                "DockPorts:docker": "7575:tcp"
             }
             
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -85,26 +86,48 @@ def init_config():
         print(f"隐藏端口配置文件已存在: {HIDDEN_PORTS_FILE}")
 
 def load_config():
-    """加载配置文件，支持UDP协议标记"""
+    """加载配置文件，支持新格式：服务名:docker/host -> 端口:tcp/udp"""
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             raw_config = json.load(f)
         
-        # 处理配置文件，支持name:port:udp格式
+        # 处理配置文件，支持新格式
         processed_config = {}
         for key, value in raw_config.items():
             if isinstance(value, str) and ':' in value:
-                # 解析name:port:protocol格式
-                parts = value.split(':')
-                if len(parts) >= 2:
-                    try:
-                        port = int(parts[-2] if len(parts) >= 3 else parts[-1])
-                        protocol = parts[-1].upper() if len(parts) >= 3 and parts[-1].upper() in ['TCP', 'UDP'] else 'TCP'
-                        processed_config[key] = {'port': port, 'protocol': protocol}
-                    except ValueError:
+                # 检查是否为新格式：服务名:docker/host -> 端口:tcp/udp
+                if ':' in key and (key.endswith(':docker') or key.endswith(':host')):
+                    # 新格式的键：服务名:docker/host
+                    service_name = key.rsplit(':', 1)[0]  # 提取服务名
+                    service_type = key.rsplit(':', 1)[1]  # 提取服务类型
+                    
+                    # 解析值：端口:协议
+                    value_parts = value.split(':')
+                    if len(value_parts) >= 2:
+                        try:
+                            port = int(value_parts[0])
+                            protocol = value_parts[1].upper()
+                            processed_config[service_name] = {
+                                'port': port, 
+                                'protocol': protocol,
+                                'service_type': service_type
+                            }
+                        except ValueError:
+                            processed_config[key] = value
+                    else:
                         processed_config[key] = value
                 else:
-                    processed_config[key] = value
+                    # 兼容旧格式："服务名": "端口:协议"
+                    parts = value.split(':')
+                    if len(parts) >= 2:
+                        try:
+                            port = int(parts[0])  # 第一部分是端口号
+                            protocol = parts[1].upper() if parts[1].upper() in ['TCP', 'UDP'] else 'TCP'
+                            processed_config[key] = {'port': port, 'protocol': protocol}
+                        except ValueError:
+                            processed_config[key] = value
+                    else:
+                        processed_config[key] = value
             elif isinstance(value, int):
                 # 默认为TCP协议
                 processed_config[key] = {'port': value, 'protocol': 'TCP'}
@@ -132,19 +155,19 @@ def load_config():
         }
 
 def save_config(config):
-    """保存配置文件，支持UDP协议标记"""
+    """保存配置文件，使用新格式：服务名:docker/host -> 端口:tcp/udp"""
     try:
-        # 处理配置文件，将协议信息转换为字符串格式
+        # 处理配置文件，将协议信息转换为新的字符串格式
         raw_config = {}
         for key, value in config.items():
             if isinstance(value, dict) and 'port' in value and 'protocol' in value:
                 port = value['port']
-                protocol = value['protocol']
-                if protocol.upper() == 'UDP':
-                    raw_config[key] = f"{port}:udp"
-                else:
-                    # TCP协议可以省略，直接使用端口号
-                    raw_config[key] = port
+                protocol = value['protocol'].lower()
+                # 确定服务类型（默认为host，如果有容器信息则为docker）
+                service_type = value.get('service_type', 'host')
+                # 新格式："服务名:docker/host":"端口:tcp/udp"
+                new_key = f"{key}:{service_type}"
+                raw_config[new_key] = f"{port}:{protocol}"
             else:
                 raw_config[key] = value
         
@@ -601,19 +624,30 @@ class PortMonitor:
             if protocol_filter and protocol_filter.upper() not in protocol.upper():
                 continue
             
+            # 检查配置文件中是否有该端口的service_type信息
+            config_service_type = None
+            config_service_name = None
+            for service_name, service_config in config.items():
+                if isinstance(service_config, dict) and service_config.get('port') == port:
+                    config_service_type = service_config.get('service_type')
+                    config_service_name = service_name
+                    break
+            
             if port in docker_port_map:
                 # Docker容器端口
                 docker_info = docker_port_map[port]
+                # 如果配置文件中指定了service_type，使用配置文件的；否则默认为docker
+                source = config_service_type if config_service_type in ['docker', 'host'] else 'docker'
                 card_data = {
                     'port': port,
                     'type': 'used',
-                    'source': 'docker',
+                    'source': source,
                     'protocol': protocol,
                     'container': docker_info['container_name'],
                     'process': f"Docker: {docker_info['container_name']}",
                     'image': docker_info.get('image', ''),
                     'container_port': docker_info['container_port'],
-                    'service_name': docker_info['container_name']
+                    'service_name': config_service_name or docker_info['container_name']
                 }
             else:
                 # 系统服务端口
@@ -622,12 +656,20 @@ class PortMonitor:
                 # 检查是否为host网络容器
                 is_host_container = bool(host_info.get('container_name'))
                 
+                # 确定source：优先使用配置文件中的service_type
+                if config_service_type in ['docker', 'host']:
+                    source = config_service_type
+                elif is_host_container:
+                    source = 'docker'
+                else:
+                    source = 'system'
+                
                 card_data = {
                     'port': port,
                     'type': 'used',
-                    'source': 'docker' if is_host_container else 'system',
+                    'source': source,
                     'protocol': protocol,
-                    'service_name': host_info.get('service_name', '未知服务'),
+                    'service_name': config_service_name or host_info.get('service_name', '未知服务'),
                     'container': host_info.get('container_name'),
                     'is_host_network': is_host_container
                 }
@@ -924,6 +966,17 @@ def api_get_config():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/config/raw')
+def api_get_raw_config():
+    """API接口：获取原始配置文件内容（用于设置界面编辑）"""
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            raw_config = json.load(f)
+        return jsonify(raw_config)
+    except Exception as e:
+        logger.error(f"获取原始配置失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/config', methods=['POST'])
 def api_save_config():
     """API接口：保存配置信息"""
@@ -939,6 +992,7 @@ def api_save_config():
         if 'port' in data and 'service_name' in data:
             port = data['port']
             service_name = data['service_name'].strip()
+            service_type = data.get('service_type', 'host')  # 默认为host
             
             if not service_name:
                 return jsonify({'error': '服务名称不能为空'}), 400
@@ -946,6 +1000,10 @@ def api_save_config():
             # 验证端口号
             if not isinstance(port, int) or port < 1 or port > 65535:
                 return jsonify({'error': '端口号必须在1-65535之间'}), 400
+            
+            # 验证服务类型
+            if service_type not in ['docker', 'host']:
+                return jsonify({'error': '服务类型必须是docker或host'}), 400
             
             # 加载当前配置
             current_config = load_config()
@@ -966,26 +1024,85 @@ def api_save_config():
             if existing_service:
                 # 更新现有端口的服务名称
                 del current_config[existing_service]
-                current_config[service_name] = {'port': port, 'protocol': 'TCP'}
+                current_config[service_name] = {
+                    'port': port, 
+                    'protocol': 'TCP',
+                    'service_type': service_type
+                }
             else:
                 # 添加新的端口配置
-                current_config[service_name] = {'port': port, 'protocol': 'TCP'}
+                current_config[service_name] = {
+                    'port': port, 
+                    'protocol': 'TCP',
+                    'service_type': service_type
+                }
             
             # 保存配置
             if save_config(current_config):
                 config = load_config()
                 return jsonify({
                     'success': True, 
-                    'message': f'端口 {port} 的服务名称已设置为 "{service_name}"'
+                    'message': f'端口 {port} 的服务名称已设置为 "{service_name}"（{service_type}）'
                 })
             else:
                 return jsonify({'error': '配置保存失败'}), 500
         else:
-            # 保存整个配置（原有功能）
-            if save_config(data):
+            # 保存整个配置（原有功能）- 支持混合格式
+            # 验证配置格式（支持混合格式）
+            for name, value in data.items():
+                if name == 'app_settings':
+                    continue
+                    
+                port = None
+                
+                if isinstance(value, int):
+                    # 纯数字格式
+                    port = value
+                elif isinstance(value, str):
+                    # 字符串格式："端口号:协议" 或 "端口号"
+                    parts = value.split(':')
+                    if len(parts) >= 1:
+                        try:
+                            port = int(parts[0])
+                        except ValueError:
+                            return jsonify({'error': f'配置项 "{name}" 的端口号 "{parts[0]}" 无效'}), 400
+                        
+                        # 验证协议（如果存在）
+                        if len(parts) > 1:
+                            protocol = parts[1].lower()
+                            if protocol not in ['tcp', 'udp']:
+                                return jsonify({'error': f'配置项 "{name}" 的协议 "{parts[1]}" 无效，只支持TCP或UDP'}), 400
+                    else:
+                        return jsonify({'error': f'配置项 "{name}" 格式无效'}), 400
+                elif isinstance(value, dict):
+                    # 对象格式：{port: 端口号, protocol: 协议}
+                    if 'port' not in value:
+                        return jsonify({'error': f'配置项 "{name}" 缺少端口号'}), 400
+                    port = value['port']
+                    
+                    # 验证协议（如果存在）
+                    if 'protocol' in value:
+                        protocol = str(value['protocol']).lower()
+                        if protocol not in ['tcp', 'udp']:
+                            return jsonify({'error': f'配置项 "{name}" 的协议 "{value["protocol"]}" 无效，只支持TCP或UDP'}), 400
+                else:
+                    return jsonify({'error': f'配置项 "{name}" 格式无效，支持格式：端口号、"端口号:协议" 或 {{port: 端口号, protocol: 协议}}'}), 400
+                
+                if not isinstance(port, int) or port < 1 or port > 65535:
+                    return jsonify({'error': f'端口号 "{port}" 无效，必须是1-65535之间的整数'}), 400
+            
+            # 直接保存原始格式的配置到文件
+            try:
+                with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                
+                # 更新全局配置（重新加载以确保一致性）
                 config = load_config()
+                
+                logger.info("配置已更新")
                 return jsonify({'success': True, 'message': '配置保存成功'})
-            else:
+            except Exception as e:
+                logger.error(f"写入配置文件失败: {e}")
                 return jsonify({'error': '配置保存失败'}), 500
                 
     except Exception as e:

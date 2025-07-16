@@ -1328,6 +1328,9 @@
             <div class="config-section">
                 <h3>配置文件编辑</h3>
                 <p style="color: #666; margin-bottom: 1rem; font-size: 0.9rem;">直接编辑 config.json 文件内容，支持中文服务名称</p>
+                
+
+                
                 <textarea id="configEditor" style="width: 100%; height: 300px; font-family: 'Courier New', monospace; font-size: 0.9rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 6px; resize: vertical;" placeholder="请输入有效的JSON配置..."></textarea>
                 <div id="configError" style="color: #e53e3e; font-size: 0.8rem; margin-top: 0.5rem; display: none;"></div>
             </div>
@@ -1952,8 +1955,9 @@
                         listEl.style.borderLeftColor = '#48bb78';
                     }
                     
-                    // 获取显示名称和完整名称
-                    const displayName = card.source === 'docker' ? (card.container || card.container_name || 'Docker容器') : (card.service_name || card.process || '系统服务');
+                    // 获取显示名称和完整名称 - 优先使用配置文件中的服务名
+                    const displayName = card.service_name || 
+                        (card.source === 'docker' ? (card.container || card.container_name || 'Docker容器') : (card.process || '系统服务'));
                     const fullName = displayName;
                     
                     // 处理Docker容器端口显示格式
@@ -2200,13 +2204,14 @@
          */
         async function openSettings() {
             try {
-                const response = await fetch('/api/config');
-                const config = await response.json();
-                currentConfig = config;
+                // 获取原始配置文件内容（未经处理的格式）
+                const response = await fetch('/api/config/raw');
+                const rawConfig = await response.json();
+                currentConfig = rawConfig;
                 
-                // 将配置转换为格式化的JSON字符串
+                // 将原始配置转换为格式化的JSON字符串
                 const configEditor = document.getElementById('configEditor');
-                configEditor.value = JSON.stringify(config, null, 2);
+                configEditor.value = JSON.stringify(rawConfig, null, 2);
                 
                 // 清除错误信息
                 document.getElementById('configError').style.display = 'none';
@@ -2254,16 +2259,64 @@
                     return;
                 }
                 
-                // 验证端口号（排除app_settings），适配新的数据结构
+                // 验证端口号（排除app_settings），支持新格式："服务名:docker/host":"端口:tcp/udp"
                 for (const [name, value] of Object.entries(newConfig)) {
                     if (name !== 'app_settings') {
                         let port;
-                        if (typeof value === 'object' && value.port) {
-                            port = value.port;
-                        } else if (typeof value === 'number') {
+                        let serviceName = name;
+                        let serviceType = 'host';
+                        
+                        // 检查是否为新格式的键："服务名:docker/host"
+                        if (name.includes(':') && (name.endsWith(':docker') || name.endsWith(':host'))) {
+                            const parts = name.split(':');
+                            serviceName = parts.slice(0, -1).join(':'); // 支持服务名中包含冒号
+                            serviceType = parts[parts.length - 1];
+                            
+                            if (serviceType !== 'docker' && serviceType !== 'host') {
+                                configError.textContent = `配置项 "${name}" 的服务类型 "${serviceType}" 无效，只支持docker或host`;
+                                configError.style.display = 'block';
+                                return;
+                            }
+                        }
+                        
+                        if (typeof value === 'number') {
+                            // 纯数字格式：端口号（兼容旧格式）
                             port = value;
+                        } else if (typeof value === 'string') {
+                            // 字符串格式："端口号:协议"
+                            const parts = value.split(':');
+                            if (parts.length >= 2) {
+                                port = parseInt(parts[0]);
+                                if (isNaN(port)) {
+                                    configError.textContent = `配置项 "${name}" 的端口号 "${parts[0]}" 无效`;
+                                    configError.style.display = 'block';
+                                    return;
+                                }
+                                // 验证协议
+                                const protocol = parts[1].toLowerCase();
+                                if (protocol !== 'tcp' && protocol !== 'udp') {
+                                    configError.textContent = `配置项 "${name}" 的协议 "${parts[1]}" 无效，只支持tcp或udp`;
+                                    configError.style.display = 'block';
+                                    return;
+                                }
+                            } else {
+                                configError.textContent = `配置项 "${name}" 的格式无效，新格式应为 "端口号:协议"`;
+                                configError.style.display = 'block';
+                                return;
+                            }
+                        } else if (typeof value === 'object' && value !== null && value.port) {
+                            // 对象格式：{port: 端口号, protocol: 协议}（兼容旧格式）
+                            port = value.port;
+                            if (value.protocol && typeof value.protocol === 'string') {
+                                const protocol = value.protocol.toLowerCase();
+                                if (protocol !== 'tcp' && protocol !== 'udp') {
+                                    configError.textContent = `配置项 "${name}" 的协议 "${value.protocol}" 无效，只支持TCP或UDP`;
+                                    configError.style.display = 'block';
+                                    return;
+                                }
+                            }
                         } else {
-                            configError.textContent = `配置项 "${name}" 的格式无效`;
+                            configError.textContent = `配置项 "${name}" 的格式无效，新格式："服务名:docker/host":"端口号:协议"`;
                             configError.style.display = 'block';
                             return;
                         }
@@ -2303,7 +2356,7 @@
                 configError.style.display = 'block';
             }
         }
-
+        
         // 点击模态框外部关闭
         window.onclick = function(event) {
             const modal = document.getElementById('settingsModal');
@@ -2319,8 +2372,18 @@
             modal.className = 'edit-modal';
             modal.innerHTML = `
                 <div class="edit-modal-content">
-                    <h3>编辑端口 ${port} 的服务名称</h3>
-                    <input type="text" id="portNameInput" placeholder="请输入服务名称" maxlength="50">
+                    <h3>编辑端口 ${port} 的服务配置</h3>
+                    <div style="margin-bottom: 1rem;">
+                        <label for="portNameInput" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">服务名称:</label>
+                        <input type="text" id="portNameInput" placeholder="请输入服务名称" maxlength="50" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label for="serviceTypeSelect" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">服务类型:</label>
+                        <select id="serviceTypeSelect" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                            <option value="host">宿主机服务</option>
+                            <option value="docker">Docker容器</option>
+                        </select>
+                    </div>
                     <div class="edit-modal-buttons">
                         <button class="cancel-btn" onclick="closeEditModal()">取消</button>
                         <button class="save-btn" onclick="savePortName(${port})">保存</button>
@@ -2358,7 +2421,9 @@
 
         function savePortName(port) {
             const input = document.getElementById('portNameInput');
+            const serviceTypeSelect = document.getElementById('serviceTypeSelect');
             const serviceName = input.value.trim();
+            const serviceType = serviceTypeSelect.value;
             
             if (!serviceName) {
                 alert('请输入服务名称');
@@ -2373,7 +2438,8 @@
                 },
                 body: JSON.stringify({
                     port: port,
-                    service_name: serviceName
+                    service_name: serviceName,
+                    service_type: serviceType
                 })
             })
             .then(response => response.json())
